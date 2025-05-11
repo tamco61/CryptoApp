@@ -31,11 +31,9 @@ class ExchangeSimulator:
         if not coin_id:
             raise Exception(f"CoinGecko ID not found for symbol: {self.symbol}")
 
-        # CoinGecko поддерживает до 90 дней minute/hourly данных, иначе — daily
         if self.timeframe != "1d":
             raise Exception("CoinGecko API supports only '1d' (daily) data for backtests.")
 
-        # Определим количество дней
         if start_date is None or end_date is None:
             days = 90
         else:
@@ -62,9 +60,8 @@ class ExchangeSimulator:
         df["open"] = df["close"]
         df["high"] = df["close"]
         df["low"] = df["close"]
-        df["volume"] = 0.0  # Объёмы CoinGecko здесь не возвращает
+        df["volume"] = 0.0 
 
-        # Фильтрация по датам
         if start_date and end_date:
             df = df[(df["timestamp"] >= pd.to_datetime(start_date)) & (df["timestamp"] <= pd.to_datetime(end_date))]
 
