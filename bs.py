@@ -9,7 +9,6 @@ def compute_rsi(data: pd.Series, window: int = 14) -> pd.Series:
     rs = avg_gain / avg_loss
     return 100 - (100 / (1 + rs))
 
-# Расчёт MACD
 def compute_macd(data: pd.Series, short_window: int = 12, long_window: int = 26, signal_window: int = 9):
     short_ema = data.ewm(span=short_window, adjust=False).mean()
     long_ema = data.ewm(span=long_window, adjust=False).mean()
