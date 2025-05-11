@@ -10,7 +10,6 @@ class SmartBot:
         self.macd_signal_window = macd_signal_window
 
     def tick(self):
-        # Проверяем, можем ли применить индикаторы
         if self.exchange.current_idx < max(self.rsi_window, self.macd_long_window):
             return
 
@@ -18,21 +17,19 @@ class SmartBot:
         rsi = compute_rsi(recent_data['close'], self.rsi_window).iloc[-1]
         macd, macd_signal = compute_macd(recent_data['close'], self.macd_short_window, self.macd_long_window, self.macd_signal_window)
 
-        # Логика для покупки или продажи
-        if rsi < 30 and self.exchange.position == 0:  # RSI меньше 30: покупка
+        if rsi < 30 and self.exchange.position == 0: 
             print(f"RSI: {rsi:.2f} - Покупка!")
             self.exchange.buy()
 
-        elif rsi > 70 and self.exchange.position > 0:  # RSI больше 70: продажа
+        elif rsi > 70 and self.exchange.position > 0: 
             print(f"RSI: {rsi:.2f} - Продажа!")
             self.exchange.sell()
 
-        # Логика MACD
-        if macd.iloc[-1] > macd_signal.iloc[-1] and self.exchange.position == 0:  # MACD пересек сигнальную линию сверху вниз
+        if macd.iloc[-1] > macd_signal.iloc[-1] and self.exchange.position == 0: 
             print(f"MACD: Покупка!")
             self.exchange.buy()
 
-        elif macd.iloc[-1] < macd_signal.iloc[-1] and self.exchange.position > 0:  # MACD пересек сигнальную линию снизу вверх
+        elif macd.iloc[-1] < macd_signal.iloc[-1] and self.exchange.position > 0: 
             print(f"MACD: Продажа!")
             self.exchange.sell()
 
