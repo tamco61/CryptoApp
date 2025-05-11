@@ -11,7 +11,6 @@ from bots import SimpleBot
 
 app = FastAPI()
 
-# Разрешаем доступ с фронтенда
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -80,7 +79,6 @@ def get_price_data(
         if data.empty:
             return {"dates": [], "prices": [], "sma": [], "ema": [], "rsi": [], "recommendation": "no data"}
 
-        # Упрощаем мультииндексированные колонки, если они есть
         if isinstance(data.columns, pd.MultiIndex):
             data.columns = [col[0] for col in data.columns]
 
@@ -98,7 +96,6 @@ def get_price_data(
         if show_rsi:
             indicators.append('RSI')
 
-        # Удаляем строки с NaN в выбранных индикаторах
         data = data.dropna(subset=indicators)
 
         if data.empty:
