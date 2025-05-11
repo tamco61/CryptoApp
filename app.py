@@ -3,10 +3,8 @@ import requests
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
-# Настройка страницы
 st.set_page_config(page_title="Crypto Analytics & Trading", layout="wide")
 
-# Боковое меню
 menu = st.sidebar.radio("Меню", [
     "Dashboard",
     "Market Overview",
@@ -16,7 +14,6 @@ menu = st.sidebar.radio("Меню", [
     "Settings"
 ])
 
-# Заглушки для разделов
 if menu == "Dashboard":
     import streamlit as st
     import requests
@@ -24,12 +21,11 @@ if menu == "Dashboard":
     from datetime import datetime
 
     ETHERSCAN_API_KEY = "U91UHTU92GCYXM8J6379D9PZ5BWS3S2DCM"
-    ETH_ADDRESS = "0x80787af194C33b74a811f5e5c549316269d7Ee1A"  # Твой адрес
+    ETH_ADDRESS = "0x80787af194C33b74a811f5e5c549316269d7Ee1A"
 
     st.title("📊 Dashboard — Обзор кошелька Ethereum")
 
 
-    # Получаем историю транзакций
     @st.cache_data
     def get_transactions(address, api_key):
         url = (
@@ -82,7 +78,6 @@ elif menu == "Market Overview":
 
     st.subheader("Котировки популярных криптовалют")
 
-    # Загружаем котировки через CoinGecko
     url = "https://api.coingecko.com/api/v3/simple/price"
     params = {
         "ids": "bitcoin,ethereum,binancecoin,solana,ripple",
@@ -102,14 +97,12 @@ elif menu == "Market Overview":
         price = response.get(key, {}).get("usd", "N/A")
         st.write(f"**{label}**: ${price}")
 
-    # Индикатор настроения — можно подгрузить с alternative.me (пример статичный)
     st.subheader("Индикаторы настроения")
     fear_greed = requests.get("https://api.alternative.me/fng/").json()
     value = int(fear_greed["data"][0]["value"])
     st.progress(value / 100)
     st.caption(f"Индекс настроения: {fear_greed['data'][0]['value_classification']} ({value}%)")
 
-    # Объёмы торгов (пример с CoinGecko)
     st.subheader("Объёмы торгов (24ч)")
 
     volume_url = "https://api.coingecko.com/api/v3/coins/markets"
@@ -124,16 +117,13 @@ elif menu == "Market Overview":
     }
     st.bar_chart(volume_dict)
 
-    # Новости — можно подключить через RSS или использовать статично
     st.subheader("Новости / события")
     st.info("🔔 Binance запускает торговлю новым токеном XAI сегодня в 17:00 UTC")
 
 elif menu == "Trading Analysis":
-    #st.set_page_config(layout="wide")
     st.title("📊 Trading Assistant (Streamlit)")
 
 
-    # Загрузка тикеров
     @st.cache_data
     def load_tickers():
         try:
@@ -143,7 +133,6 @@ elif menu == "Trading Analysis":
             return ["AAPL", "BTC-USD"]
 
 
-    # UI: выбор тикера и параметров
     tickers = load_tickers()
     ticker = st.selectbox("Торговая пара", tickers)
 
@@ -156,7 +145,6 @@ elif menu == "Trading Analysis":
                                 ["1m", "2m", "5m", "15m", "30m", "60m", "90m", "1d", "5d", "1wk", "1mo", "3mo"],
                                 index=7)
 
-    # Переключатели индикаторов
     st.markdown("### Индикаторы:")
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -166,7 +154,6 @@ elif menu == "Trading Analysis":
     with col3:
         show_rsi = st.checkbox("RSI")
 
-    # Запрос данных
     if st.button("📈 Показать график"):
         with st.spinner("Загружаем данные..."):
             params = {
@@ -187,7 +174,7 @@ elif menu == "Trading Analysis":
                     previous_price = data["prices"][-2] if len(data["prices"]) >= 2 else current_price
                     price_delta = current_price - previous_price
 
-                    col1, col2 = st.columns([1, 3])  # Сделаем две колонки: одна узкая для цены, одна пошире для графика
+                    col1, col2 = st.columns([1, 3])
 
                     with col1:
                         st.metric(
@@ -197,7 +184,7 @@ elif menu == "Trading Analysis":
                         )
 
                     with col2:
-                        st.line_chart(data["prices"][-30:])  # Показываем последние 30 точек тренда
+                        st.line_chart(data["prices"][-30:])
 
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(x=data["dates"], y=data["prices"], name="Price", line=dict(color="white")))
