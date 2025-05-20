@@ -94,7 +94,7 @@ def get_available_tickers():
 @app.get("/history", response_model=PriceData)
 def get_price_data(
     ticker: str = Query(...),  # Например: BTCUSDT
-    interval: str = Query("1"),  # Bybit: "1", "3", "5", ..., "D", "W"
+    interval: str = Query("60"),  # Bybit: "1", "3", "5", ..., "D", "W"
     limit: int = Query(100),
     show_sma: bool = Query(True),
     show_ema: bool = Query(False),

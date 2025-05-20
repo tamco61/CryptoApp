@@ -124,6 +124,23 @@ elif menu == "Trading Analysis":
     st.title("📊 Trading Assistant (Streamlit)")
 
 
+    def map_interval(interval):
+        mapping = {
+            "1m": "1",
+            "2m": "3",  # Bybit нет 2м, ближайшее — 3м
+            "3m": "3",
+            "5m": "5",
+            "15m": "15",
+            "30m": "30",
+            "60m": "60",
+            "90m": "60",  # 90 минут отсутствует, заменяем на 60
+            "1d": "D",
+            "1wk": "W",
+            "1mo": "M"
+        }
+        return mapping.get(interval, "D")  # по умолчанию "D"
+
+
     @st.cache_data
     def load_tickers():
         try:
@@ -167,6 +184,7 @@ elif menu == "Trading Analysis":
 
     if st.button("📈 Показать график"):
         with st.spinner("Загружаем данные..."):
+            interval_mapped = map_interval(interval)
             params = {
                 "ticker": ticker,
                 "period": period,
