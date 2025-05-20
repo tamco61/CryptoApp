@@ -2,11 +2,30 @@ from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 from models import BacktestResult, PriceData
-from datetime import datetime
+from datetime import datetime, timedelta
 from backtest import ExchangeSimulator, BacktestManager
-import yfinance as yf
 from bs import compute_rsi
 from bots import SimpleBot
+import requests
+from models import PriceData
+
+
+
+def get_unix_time_range(period: str):
+    now = datetime.now()
+    if period.endswith("d"):
+        days = int(period[:-1])
+        start = now - timedelta(days=days)
+    elif period.endswith("mo"):
+        months = int(period[:-2])
+        start = now - timedelta(days=30 * months)
+    elif period.endswith("y"):
+        years = int(period[:-1])
+        start = now - timedelta(days=365 * years)
+    else:
+        raise ValueError("Invalid period format")
+    return int(start.timestamp()), int(now.timestamp())
+
 
 
 app = FastAPI()
@@ -58,51 +77,72 @@ def run_backtest(
 @app.get("/tickers")
 def get_available_tickers():
     return [
-        "AAPL", "MSFT", "GOOGL", "TSLA", "AMZN",
-        "BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD"
+        "bitcoin",       # BTC
+        "ethereum",      # ETH
+        "solana",        # SOL
+        "dogecoin",      # DOGE
+        "binancecoin",   # BNB
+        "ripple",        # XRP
+        "cardano",       # ADA
+        "polkadot",      # DOT
+        "litecoin",      # LTC
+        "chainlink"      # LINK
     ]
 
 
 
 @app.get("/history", response_model=PriceData)
 def get_price_data(
-    ticker: str = Query(...),
-    period: str = Query("1mo"),
-    interval: str = Query("1d"),
+    ticker: str = Query(..., description="CoinGecko ID, e.g., 'bitcoin'"),
+    period: str = Query("30d", description="e.g., 30d, 1mo, 1y"),
+    interval: str = Query("daily", description="Only 'daily' or 'hourly' supported"),
     show_sma: bool = Query(True),
     show_ema: bool = Query(False),
     show_rsi: bool = Query(False)
 ):
     try:
-        data = yf.download(ticker, period=period, interval=interval)
+        from_ts, to_ts = get_unix_time_range(period)
 
-        if data.empty:
+        # CoinGecko API call
+        url = f"https://api.coingecko.com/api/v3/coins/{ticker}/market_chart/range"
+        params = {
+            "vs_currency": "usd",
+            "from": from_ts,
+            "to": to_ts
+        }
+        response = requests.get(url, params=params)
+        if response.status_code != 200:
+            raise Exception(f"CoinGecko API error: {response.status_code} {response.text}")
+
+        market_data = response.json()
+        prices = market_data.get("prices", [])
+        if not prices:
             return {"dates": [], "prices": [], "sma": [], "ema": [], "rsi": [], "recommendation": "no data"}
 
-        if isinstance(data.columns, pd.MultiIndex):
-            data.columns = [col[0] for col in data.columns]
+        df = pd.DataFrame(prices, columns=["timestamp", "Close"])
+        df["Date"] = pd.to_datetime(df["timestamp"], unit='ms')
 
-        data = data.reset_index()
+        # Индикаторы
+        df['SMA'] = df['Close'].rolling(window=5).mean() if show_sma else None
+        df['EMA'] = df['Close'].ewm(span=5, adjust=False).mean() if show_ema else None
+        df['RSI'] = compute_rsi(df['Close']) if show_rsi else None
 
-        data['SMA'] = data['Close'].rolling(window=5).mean() if show_sma else None
-        data['EMA'] = data['Close'].ewm(span=5, adjust=False).mean() if show_ema else None
-        data['RSI'] = compute_rsi(data['Close']) if show_rsi else None
-
+        # Убираем строки с NaN в нужных колонках
         indicators = []
         if show_sma:
-            indicators.append('SMA')
+            indicators.append("SMA")
         if show_ema:
-            indicators.append('EMA')
+            indicators.append("EMA")
         if show_rsi:
-            indicators.append('RSI')
+            indicators.append("RSI")
 
-        data = data.dropna(subset=indicators)
+        df = df.dropna(subset=indicators)
 
-        if data.empty:
+        if df.empty:
             return {"dates": [], "prices": [], "sma": [], "ema": [], "rsi": [], "recommendation": "not enough data for indicators"}
 
-        last_price = data['Close'].iloc[-1]
-        last_sma = data['SMA'].iloc[-1] if show_sma else last_price
+        last_price = df['Close'].iloc[-1]
+        last_sma = df['SMA'].iloc[-1] if show_sma else last_price
 
         if last_price > last_sma:
             rec = "buy"
@@ -112,14 +152,14 @@ def get_price_data(
             rec = "hold"
 
         return PriceData(
-            dates=data['Date'].dt.strftime("%Y-%m-%d %H:%M").tolist() if interval in ["1m", "2m", "5m", "15m", "30m", "60m", "90m"] else data['Date'].dt.strftime("%Y-%m-%d").tolist(),
-            prices=data['Close'].tolist(),
-            sma=data['SMA'].tolist() if show_sma else [],
-            ema=data['EMA'].tolist() if show_ema else [],
-            rsi=data['RSI'].tolist() if show_rsi else [],
+            dates=df['Date'].dt.strftime("%Y-%m-%d").tolist(),
+            prices=df['Close'].tolist(),
+            sma=df['SMA'].tolist() if show_sma else [],
+            ema=df['EMA'].tolist() if show_ema else [],
+            rsi=df['RSI'].tolist() if show_rsi else [],
             recommendation=rec
         )
+
     except Exception as e:
         print(f"ERROR: {e}")
         return {"dates": [], "prices": [], "sma": [], "ema": [], "rsi": [], "recommendation": f"error: {str(e)}"}
-

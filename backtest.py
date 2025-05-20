@@ -1,10 +1,5 @@
-from datetime import datetime, timedelta
-import yfinance as yf
-
-
 import requests
 import pandas as pd
-from datetime import datetime, timedelta
 
 COINGECKO_IDS = {
     "BTC-USD": "bitcoin",

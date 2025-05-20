@@ -130,7 +130,18 @@ elif menu == "Trading Analysis":
             res = requests.get("http://localhost:8000/tickers")
             return res.json() if res.status_code == 200 else ["AAPL", "BTC-USD"]
         except:
-            return ["AAPL", "BTC-USD"]
+            return [
+        "bitcoin",       # BTC
+        "ethereum",      # ETH
+        "solana",        # SOL
+        "dogecoin",      # DOGE
+        "binancecoin",   # BNB
+        "ripple",        # XRP
+        "cardano",       # ADA
+        "polkadot",      # DOT
+        "litecoin",      # LTC
+        "chainlink"      # LINK
+    ]
 
 
     tickers = load_tickers()
