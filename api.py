@@ -77,72 +77,68 @@ def run_backtest(
 @app.get("/tickers")
 def get_available_tickers():
     return [
-        "bitcoin",       # BTC
-        "ethereum",      # ETH
-        "solana",        # SOL
-        "dogecoin",      # DOGE
-        "binancecoin",   # BNB
-        "ripple",        # XRP
-        "cardano",       # ADA
-        "polkadot",      # DOT
-        "litecoin",      # LTC
-        "chainlink"      # LINK
+        "BTCUSDT",  # Bitcoin
+        "ETHUSDT",  # Ethereum
+        "SOLUSDT",  # Solana
+        "DOGEUSDT", # Dogecoin
+        "BNBUSDT",  # Binance Coin
+        "XRPUSDT",  # Ripple
+        "ADAUSDT",  # Cardano
+        "DOTUSDT",  # Polkadot
+        "LTCUSDT",  # Litecoin
+        "LINKUSDT"  # Chainlink
     ]
 
 
 
 @app.get("/history", response_model=PriceData)
 def get_price_data(
-    ticker: str = Query(..., description="CoinGecko ID, e.g., 'bitcoin'"),
-    period: str = Query("30d", description="e.g., 30d, 1mo, 1y"),
-    interval: str = Query("daily", description="Only 'daily' or 'hourly' supported"),
+    ticker: str = Query(...),  # Например: BTCUSDT
+    interval: str = Query("1"),  # Bybit: "1", "3", "5", ..., "D", "W"
+    limit: int = Query(100),
     show_sma: bool = Query(True),
     show_ema: bool = Query(False),
     show_rsi: bool = Query(False)
 ):
     try:
-        from_ts, to_ts = get_unix_time_range(period)
-
-        # CoinGecko API call
-        url = f"https://api.coingecko.com/api/v3/coins/{ticker}/market_chart/range"
+        url = "https://api.bybit.com/v5/market/kline"
         params = {
-            "vs_currency": "usd",
-            "from": from_ts,
-            "to": to_ts
+            "category": "spot",
+            "symbol": ticker,
+            "interval": interval,
+            "limit": limit
         }
         response = requests.get(url, params=params)
-        if response.status_code != 200:
-            raise Exception(f"CoinGecko API error: {response.status_code} {response.text}")
+        result = response.json()
 
-        market_data = response.json()
-        prices = market_data.get("prices", [])
-        if not prices:
+        if result["retCode"] != 0 or not result["result"]["list"]:
             return {"dates": [], "prices": [], "sma": [], "ema": [], "rsi": [], "recommendation": "no data"}
 
-        df = pd.DataFrame(prices, columns=["timestamp", "Close"])
-        df["Date"] = pd.to_datetime(df["timestamp"], unit='ms')
+        raw = result["result"]["list"]
+        df = pd.DataFrame(raw, columns=["timestamp", "open", "high", "low", "close", "volume", "_", "_"])
+        df["Date"] = pd.to_datetime(df["timestamp"].astype(float), unit='ms')
+        df["Close"] = df["close"].astype(float)
 
         # Индикаторы
-        df['SMA'] = df['Close'].rolling(window=5).mean() if show_sma else None
-        df['EMA'] = df['Close'].ewm(span=5, adjust=False).mean() if show_ema else None
-        df['RSI'] = compute_rsi(df['Close']) if show_rsi else None
+        df["SMA"] = df["Close"].rolling(window=5).mean() if show_sma else None
+        df["EMA"] = df["Close"].ewm(span=5, adjust=False).mean() if show_ema else None
+        df["RSI"] = compute_rsi(df["Close"]) if show_rsi else None
 
-        # Убираем строки с NaN в нужных колонках
         indicators = []
         if show_sma:
-            indicators.append("SMA")
+            indicators.append('SMA')
         if show_ema:
-            indicators.append("EMA")
+            indicators.append('EMA')
         if show_rsi:
-            indicators.append("RSI")
+            indicators.append('RSI')
 
         df = df.dropna(subset=indicators)
 
         if df.empty:
             return {"dates": [], "prices": [], "sma": [], "ema": [], "rsi": [], "recommendation": "not enough data for indicators"}
 
-        last_price = df['Close'].iloc[-1]
-        last_sma = df['SMA'].iloc[-1] if show_sma else last_price
+        last_price = df["Close"].iloc[-1]
+        last_sma = df["SMA"].iloc[-1] if show_sma else last_price
 
         if last_price > last_sma:
             rec = "buy"
@@ -151,15 +147,19 @@ def get_price_data(
         else:
             rec = "hold"
 
+        date_fmt = "%Y-%m-%d %H:%M" if interval.isdigit() else "%Y-%m-%d"
         return PriceData(
-            dates=df['Date'].dt.strftime("%Y-%m-%d").tolist(),
-            prices=df['Close'].tolist(),
-            sma=df['SMA'].tolist() if show_sma else [],
-            ema=df['EMA'].tolist() if show_ema else [],
-            rsi=df['RSI'].tolist() if show_rsi else [],
+            dates=df["Date"].dt.strftime(date_fmt).tolist(),
+            prices=df["Close"].tolist(),
+            sma=df["SMA"].tolist() if show_sma else [],
+            ema=df["EMA"].tolist() if show_ema else [],
+            rsi=df["RSI"].tolist() if show_rsi else [],
             recommendation=rec
         )
 
     except Exception as e:
         print(f"ERROR: {e}")
-        return {"dates": [], "prices": [], "sma": [], "ema": [], "rsi": [], "recommendation": f"error: {str(e)}"}
+        return {
+            "dates": [], "prices": [], "sma": [], "ema": [], "rsi": [],
+            "recommendation": f"error: {str(e)}"
+        }

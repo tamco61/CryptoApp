@@ -131,17 +131,17 @@ elif menu == "Trading Analysis":
             return res.json() if res.status_code == 200 else ["AAPL", "BTC-USD"]
         except:
             return [
-        "bitcoin",       # BTC
-        "ethereum",      # ETH
-        "solana",        # SOL
-        "dogecoin",      # DOGE
-        "binancecoin",   # BNB
-        "ripple",        # XRP
-        "cardano",       # ADA
-        "polkadot",      # DOT
-        "litecoin",      # LTC
-        "chainlink"      # LINK
-    ]
+                "BTCUSDT",  # Bitcoin
+                "ETHUSDT",  # Ethereum
+                "SOLUSDT",  # Solana
+                "DOGEUSDT",  # Dogecoin
+                "BNBUSDT",  # Binance Coin
+                "XRPUSDT",  # Ripple
+                "ADAUSDT",  # Cardano
+                "DOTUSDT",  # Polkadot
+                "LTCUSDT",  # Litecoin
+                "LINKUSDT"  # Chainlink
+            ]
 
 
     tickers = load_tickers()
