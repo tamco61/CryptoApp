@@ -188,7 +188,7 @@ elif menu == "Trading Analysis":
             params = {
                 "ticker": ticker,
                 "period": period,
-                "interval": interval,
+                "interval": interval_mapped,
                 "show_sma": show_sma,
                 "show_ema": show_ema,
                 "show_rsi": show_rsi,

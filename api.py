@@ -115,7 +115,7 @@ def get_price_data(
             return {"dates": [], "prices": [], "sma": [], "ema": [], "rsi": [], "recommendation": "no data"}
 
         raw = result["result"]["list"]
-        df = pd.DataFrame(raw, columns=["timestamp", "open", "high", "low", "close", "volume", "_", "_"])
+        df = pd.DataFrame(raw, columns=["timestamp", "open", "high", "low", "close", "volume", "_"])
         df["Date"] = pd.to_datetime(df["timestamp"].astype(float), unit='ms')
         df["Close"] = df["close"].astype(float)
 
