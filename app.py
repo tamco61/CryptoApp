@@ -238,7 +238,18 @@ elif menu == "Trading Analysis":
 elif menu == "Backtest":
     st.title("🚀 Backtest Trading Bot")
 
-    ticker = st.selectbox("Выбери актив", ["BTC-USD", "ETH-USD", "AAPL", "TSLA"])
+    ticker = st.selectbox("Выбери актив", [
+                "BTCUSDT",  # Bitcoin
+                "ETHUSDT",  # Ethereum
+                "SOLUSDT",  # Solana
+                "DOGEUSDT",  # Dogecoin
+                "BNBUSDT",  # Binance Coin
+                "XRPUSDT",  # Ripple
+                "ADAUSDT",  # Cardano
+                "DOTUSDT",  # Polkadot
+                "LTCUSDT",  # Litecoin
+                "LINKUSDT"  # Chainlink
+            ])
     timeframe = st.selectbox("Таймфрейм", ["1m", "5m", "15m", "30m", "1h", "1d"])
 
     today = datetime.today()

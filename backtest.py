@@ -1,16 +1,10 @@
 import requests
 import pandas as pd
-
-COINGECKO_IDS = {
-    "BTC-USD": "bitcoin",
-    "ETH-USD": "ethereum",
-    "SOL-USD": "solana",
-    "DOGE-USD": "dogecoin"
-}
+import time
 
 
 class ExchangeSimulator:
-    def __init__(self, symbol="BTC-USD", timeframe="1d", start_balance=10000):
+    def __init__(self, symbol="BTCUSDT", timeframe="1d", start_balance=10000):
         self.symbol = symbol
         self.timeframe = timeframe
         self.balance = start_balance
@@ -22,45 +16,65 @@ class ExchangeSimulator:
         self.history = []
 
     def load_data(self, start_date=None, end_date=None):
-        coin_id = COINGECKO_IDS.get(self.symbol)
-        if not coin_id:
-            raise Exception(f"CoinGecko ID not found for symbol: {self.symbol}")
-
-        if self.timeframe != "1d":
-            raise Exception("CoinGecko API supports only '1d' (daily) data for backtests.")
-
-        if start_date is None or end_date is None:
-            days = 90
-        else:
-            delta = end_date - start_date
-            days = delta.days + 1
-
-        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
-        params = {
-            "vs_currency": "usd",
-            "days": days,
-            "interval": "daily"
+        interval_map = {
+            "1m": "1",
+            "5m": "5",
+            "15m": "15",
+            "30m": "30",
+            "1h": "60",
+            "1d": "D"
         }
 
-        response = requests.get(url, params=params)
-        if response.status_code != 200:
-            raise Exception(f"Failed to fetch data from CoinGecko: {response.status_code}")
+        if self.timeframe not in interval_map:
+            raise Exception(f"Unsupported timeframe: {self.timeframe}")
 
-        prices = response.json().get("prices", [])
-        if not prices:
-            raise Exception("No price data available.")
+        interval = interval_map[self.timeframe]
 
-        df = pd.DataFrame(prices, columns=["timestamp", "close"])
-        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-        df["open"] = df["close"]
-        df["high"] = df["close"]
-        df["low"] = df["close"]
-        df["volume"] = 0.0 
+        start_ts = int(pd.Timestamp(start_date).timestamp() * 1000)
+        end_ts = int(pd.Timestamp(end_date).timestamp() * 1000)
+        all_data = []
 
-        if start_date and end_date:
-            df = df[(df["timestamp"] >= pd.to_datetime(start_date)) & (df["timestamp"] <= pd.to_datetime(end_date))]
+        while start_ts < end_ts:
+            url = "https://api.bybit.com/v5/market/kline"
+            params = {
+                "category": "linear",
+                "symbol": self.symbol,
+                "interval": interval,
+                "start": start_ts,
+                "limit": 200
+            }
 
-        self.data = df[["timestamp", "open", "high", "low", "close", "volume"]].reset_index(drop=True)
+            res = requests.get(url, params=params)
+            if res.status_code != 200:
+                raise Exception(f"Bybit API error: {res.status_code} {res.text}")
+
+            data = res.json().get("result", {}).get("list", [])
+            if not data:
+                break
+
+            data.reverse()
+
+            df = pd.DataFrame(data, columns=[
+                "timestamp", "open", "high", "low", "close", "volume","turnover"
+            ])
+            df["timestamp"] = pd.to_datetime(df["timestamp"].astype(float), unit="ms")
+            df[["open", "high", "low", "close", "volume"]] = df[["open", "high", "low", "close", "volume"]].astype(float)
+            all_data.append(df[["timestamp", "open", "high", "low", "close", "volume"]])
+
+            # Обновляем стартовый таймштамп для следующей итерации
+            last_ts = int(data[-1][0])
+            if last_ts == start_ts:
+                break  # защита от бесконечного цикла, если API возвращает одинаковые данные
+            start_ts = last_ts + 1
+
+            # Пауза для соблюдения лимитов
+            time.sleep(5)
+
+        if not all_data:
+            raise Exception("No data fetched from Bybit.")
+
+        self.data = pd.concat(all_data).reset_index(drop=True)
+        self.data = self.data[self.data["timestamp"] <= pd.to_datetime(end_date)]
 
     def get_current_price(self):
         return self.data.iloc[self.current_idx]["close"]
