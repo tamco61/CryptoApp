@@ -2,6 +2,15 @@ import streamlit as st
 import requests
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+import json
+
+with open('config.json', 'r') as file:
+    config = json.load(file)
+
+etherscan_key = config.get("ETHERSCAN_API_KEY")
+eth_address = config.get("ETH_ADDRESS")
+bybit_key = config.get("BYBIT_API_KEY")
+cryptopanic_token = config.get("CRYPTOPANIC_API_TOKEN")
 
 st.set_page_config(page_title="Crypto Analytics & Trading", layout="wide")
 
@@ -19,9 +28,6 @@ if menu == "Dashboard":
     import requests
     import pandas as pd
     from datetime import datetime
-
-    ETHERSCAN_API_KEY = "U91UHTU92GCYXM8J6379D9PZ5BWS3S2DCM"
-    ETH_ADDRESS = "0x80787af194C33b74a811f5e5c549316269d7Ee1A"
 
     st.title("📊 Dashboard — Обзор кошелька Ethereum")
 
@@ -43,7 +49,7 @@ if menu == "Dashboard":
         return df
 
 
-    txs = get_transactions(ETH_ADDRESS, ETHERSCAN_API_KEY)
+    txs = get_transactions(eth_address, etherscan_key)
 
     if txs.empty:
         st.error("Не удалось загрузить данные по кошельку.")
@@ -118,7 +124,29 @@ elif menu == "Market Overview":
     st.bar_chart(volume_dict)
 
     st.subheader("Новости / события")
-    st.info("🔔 Binance запускает торговлю новым токеном XAI сегодня в 17:00 UTC")
+
+    CRYPTO_PANIC_API_KEY = cryptopanic_token
+
+    news_url = "https://cryptopanic.com/api/v1/posts/"
+    news_params = {
+        "auth_token": CRYPTO_PANIC_API_KEY,
+        "currencies": "BTC,ETH,SOL,XRP,BNB",
+        "public": "true"
+    }
+
+    try:
+        news_response = requests.get(news_url, params=news_params)
+        news_response.raise_for_status()
+        news_data = news_response.json()
+
+        for post in news_data.get("results", [])[:5]:
+            title = post.get("title", "Без заголовка")
+            link = post.get("url", "#")
+            published = post.get("published_at", "N/A")
+            st.markdown(f"📰 [{title}]({link})\n\n<sub>{published}</sub>", unsafe_allow_html=True)
+
+    except requests.RequestException as e:
+        st.error("❌ Не удалось загрузить новости с CryptoPanic.")
 
 elif menu == "Trading Analysis":
     st.title("📊 Trading Assistant (Streamlit)")
@@ -127,18 +155,18 @@ elif menu == "Trading Analysis":
     def map_interval(interval):
         mapping = {
             "1m": "1",
-            "2m": "3",  # Bybit нет 2м, ближайшее — 3м
+            "2m": "3",
             "3m": "3",
             "5m": "5",
             "15m": "15",
             "30m": "30",
             "60m": "60",
-            "90m": "60",  # 90 минут отсутствует, заменяем на 60
+            "90m": "60",
             "1d": "D",
             "1wk": "W",
             "1mo": "M"
         }
-        return mapping.get(interval, "D")  # по умолчанию "D"
+        return mapping.get(interval, "D")
 
 
     @st.cache_data
@@ -148,16 +176,16 @@ elif menu == "Trading Analysis":
             return res.json() if res.status_code == 200 else ["AAPL", "BTC-USD"]
         except:
             return [
-                "BTCUSDT",  # Bitcoin
-                "ETHUSDT",  # Ethereum
-                "SOLUSDT",  # Solana
-                "DOGEUSDT",  # Dogecoin
-                "BNBUSDT",  # Binance Coin
-                "XRPUSDT",  # Ripple
-                "ADAUSDT",  # Cardano
-                "DOTUSDT",  # Polkadot
-                "LTCUSDT",  # Litecoin
-                "LINKUSDT"  # Chainlink
+                "BTCUSDT",
+                "ETHUSDT",
+                "SOLUSDT",
+                "DOGEUSDT",
+                "BNBUSDT",
+                "XRPUSDT",
+                "ADAUSDT",
+                "DOTUSDT",
+                "LTCUSDT",
+                "LINKUSDT"
             ]
 
 
@@ -239,16 +267,16 @@ elif menu == "Backtest":
     st.title("🚀 Backtest Trading Bot")
 
     ticker = st.selectbox("Выбери актив", [
-                "BTCUSDT",  # Bitcoin
-                "ETHUSDT",  # Ethereum
-                "SOLUSDT",  # Solana
-                "DOGEUSDT",  # Dogecoin
-                "BNBUSDT",  # Binance Coin
-                "XRPUSDT",  # Ripple
-                "ADAUSDT",  # Cardano
-                "DOTUSDT",  # Polkadot
-                "LTCUSDT",  # Litecoin
-                "LINKUSDT"  # Chainlink
+                "BTCUSDT",
+                "ETHUSDT",
+                "SOLUSDT",
+                "DOGEUSDT",
+                "BNBUSDT",
+                "XRPUSDT",
+                "ADAUSDT",
+                "DOTUSDT",
+                "LTCUSDT",
+                "LINKUSDT"
             ])
     timeframe = st.selectbox("Таймфрейм", ["1m", "5m", "15m", "30m", "1h", "1d"])
 
@@ -287,12 +315,3 @@ elif menu == "Backtest":
 
         except Exception as e:
             st.error(f"Ошибка подключения к серверу: {e}")
-
-
-elif menu == "Portfolio":
-    st.title("💼 Portfolio")
-    st.info("Раздел в разработке.")
-
-elif menu == "Settings":
-    st.title("⚙️ Settings")
-    st.info("Раздел в разработке.")

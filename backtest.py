@@ -61,14 +61,13 @@ class ExchangeSimulator:
             df[["open", "high", "low", "close", "volume"]] = df[["open", "high", "low", "close", "volume"]].astype(float)
             all_data.append(df[["timestamp", "open", "high", "low", "close", "volume"]])
 
-            # Обновляем стартовый таймштамп для следующей итерации
             last_ts = int(data[-1][0])
             if last_ts == start_ts:
-                break  # защита от бесконечного цикла, если API возвращает одинаковые данные
+                break
             start_ts = last_ts + 1
 
-            # Пауза для соблюдения лимитов
-            time.sleep(5)
+
+            time.sleep(0.5)
 
         if not all_data:
             raise Exception("No data fetched from Bybit.")
