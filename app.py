@@ -4,12 +4,14 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import json
 
+
 with open('config.json', 'r') as file:
     config = json.load(file)
 
 etherscan_key = config.get("ETHERSCAN_API_KEY")
 eth_address = config.get("ETH_ADDRESS")
 bybit_key = config.get("BYBIT_API_KEY")
+bybit_secret = config.get("BYBIT_API_SECRET")
 cryptopanic_token = config.get("CRYPTOPANIC_API_TOKEN")
 
 st.set_page_config(page_title="Crypto Analytics & Trading", layout="wide")
@@ -19,8 +21,7 @@ menu = st.sidebar.radio("Меню", [
     "Market Overview",
     "Trading Analysis",
     "Backtest",
-    "Portfolio",
-    "Settings"
+    "Trade Monitor"
 ])
 
 if menu == "Dashboard":
@@ -315,3 +316,223 @@ elif menu == "Backtest":
 
         except Exception as e:
             st.error(f"Ошибка подключения к серверу: {e}")
+
+elif menu == "Trade Monitor":
+    import streamlit as st
+    import requests
+    import time
+    import hmac
+    import hashlib
+    import pandas as pd
+
+    API_KEY = bybit_key
+    API_SECRET = bybit_secret
+
+
+    def get_order_history(category="linear", limit=20):
+        endpoint = "/v5/order/history"
+        url = "https://api.bybit.com" + endpoint
+
+        params = {
+            "category": category,
+            "limit": limit
+        }
+
+        timestamp = str(int(time.time() * 1000))
+        recv_window = "10000"
+
+        query_string = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
+        string_to_sign = f"{timestamp}{API_KEY}{recv_window}{query_string}"
+
+        signature = hmac.new(
+            API_SECRET.encode("utf-8"),
+            string_to_sign.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+
+        headers = {
+            "X-BAPI-API-KEY": API_KEY,
+            "X-BAPI-TIMESTAMP": timestamp,
+            "X-BAPI-RECV-WINDOW": recv_window,
+            "X-BAPI-SIGN": signature,
+            "Content-Type": "application/json"
+        }
+
+        response = requests.get(url, headers=headers, params=params)
+
+        if response.status_code != 200:
+            return None, f"Ошибка запроса: {response.status_code}"
+
+        data = response.json()
+        if data["retCode"] != 0:
+            return None, f"Ошибка API: {data['retMsg']}"
+
+        return data["result"]["list"], None
+
+
+    def get_transfer_history():
+        endpoint = "/v5/account/wallet/transfer-list"
+        url = "https://api.bybit.com" + endpoint
+
+        params = {
+            "accountType": "UNIFIED",
+            "limit": 20
+        }
+
+        timestamp = str(int(time.time() * 1000))
+        recv_window = "10000"
+
+        query_string = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
+        string_to_sign = f"{timestamp}{API_KEY}{recv_window}{query_string}"
+
+        signature = hmac.new(
+            API_SECRET.encode("utf-8"),
+            string_to_sign.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+
+        headers = {
+            "X-BAPI-API-KEY": API_KEY,
+            "X-BAPI-TIMESTAMP": timestamp,
+            "X-BAPI-RECV-WINDOW": recv_window,
+            "X-BAPI-SIGN": signature,
+            "Content-Type": "application/json"
+        }
+
+        response = requests.get(url, headers=headers, params=params)
+
+        if response.status_code != 200:
+            return None, f"Ошибка запроса: {response.status_code}"
+
+        data = response.json()
+        if data["retCode"] != 0:
+            return None, f"Ошибка API: {data['retMsg']}"
+
+        return data["result"]["list"], None
+
+
+    def get_wallet_balance():
+        endpoint = "/v5/account/wallet-balance"
+        url = "https://api.bybit.com" + endpoint
+
+        params = {
+            "accountType": "UNIFIED"
+        }
+
+        timestamp = str(int(time.time() * 1000))
+        recv_window = "10000"
+
+        query_string = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
+        string_to_sign = f"{timestamp}{API_KEY}{recv_window}{query_string}"
+
+        signature = hmac.new(
+            API_SECRET.encode("utf-8"),
+            string_to_sign.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+
+        headers = {
+            "X-BAPI-API-KEY": API_KEY,
+            "X-BAPI-TIMESTAMP": timestamp,
+            "X-BAPI-RECV-WINDOW": recv_window,
+            "X-BAPI-SIGN": signature,
+            "Content-Type": "application/json"
+        }
+
+        response = requests.get(url, headers=headers, params=params)
+
+        if response.status_code != 200:
+            return None, f"Ошибка запроса: {response.status_code}"
+
+        data = response.json()
+        if data["retCode"] != 0:
+            return None, f"Ошибка API: {data['retMsg']}"
+
+        return data["result"]["list"][0], None
+
+
+    def get_wallet_balance_all_accounts():
+        account_types = ["UNIFIED", "CONTRACT", "SPOT", "FUNDING"]
+        results = {}
+
+        for acc_type in account_types:
+            endpoint = "/v5/account/wallet-balance"
+            url = "https://api.bybit.com" + endpoint
+
+            params = {
+                "accountType": acc_type
+            }
+
+            timestamp = str(int(time.time() * 1000))
+            recv_window = "10000"
+
+            query_string = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
+            string_to_sign = f"{timestamp}{API_KEY}{recv_window}{query_string}"
+
+            signature = hmac.new(
+                API_SECRET.encode("utf-8"),
+                string_to_sign.encode("utf-8"),
+                hashlib.sha256
+            ).hexdigest()
+
+            headers = {
+                "X-BAPI-API-KEY": API_KEY,
+                "X-BAPI-TIMESTAMP": timestamp,
+                "X-BAPI-RECV-WINDOW": recv_window,
+                "X-BAPI-SIGN": signature,
+                "Content-Type": "application/json"
+            }
+
+            response = requests.get(url, headers=headers, params=params)
+
+            if response.status_code == 200:
+                data = response.json()
+                if data["retCode"] == 0 and data["result"]["list"]:
+                    results[acc_type] = data["result"]["list"][0]["coin"]
+                else:
+                    results[acc_type] = []
+            else:
+                results[acc_type] = f"Ошибка {response.status_code}"
+
+        return results
+
+
+    st.header("💼 Trade Monitor — Баланс, Транзакции и Ордеры")
+
+    tabs = st.tabs(["📊 Баланс", "📑 История ордеров"])
+
+    with tabs[0]:
+        st.subheader("💰 Балансы по всем типам аккаунтов")
+        balances = get_wallet_balance_all_accounts()
+
+        for acc_type, coins in balances.items():
+            st.markdown(f"### 🧾 {acc_type} Account")
+            if isinstance(coins, str):
+                st.error(coins)
+            elif not coins:
+                st.info("Нет средств.")
+            else:
+                df = pd.DataFrame(coins)
+                df = df[df["walletBalance"].astype(float) > 0]
+                df["walletBalance"] = df["walletBalance"].astype(float)
+                df["unrealisedPnl"] = df["unrealisedPnl"].astype(float)
+                df["usdValue"] = df["usdValue"].astype(float)
+                st.dataframe(df[["coin", "walletBalance", "usdValue", "unrealisedPnl"]])
+
+    with tabs[1]:
+        st.subheader("📑 История ордеров (последние 20)")
+        with st.spinner("Загружаем историю ордеров..."):
+            orders, error = get_order_history()
+
+        if error:
+            st.error(error)
+        elif not orders:
+            st.info("История ордеров пуста.")
+        else:
+            import pandas as pd
+
+            df = pd.DataFrame(orders)
+            df["createdTime"] = pd.to_datetime(df["createdTime"].astype(int), unit="ms")
+            df["updatedTime"] = pd.to_datetime(df["updatedTime"].astype(int), unit="ms")
+            columns_to_show = ["symbol", "side", "orderType", "price", "qty", "orderStatus", "createdTime"]
+            st.dataframe(df[columns_to_show].sort_values("createdTime", ascending=False))
