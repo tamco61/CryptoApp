@@ -327,16 +327,7 @@ elif menu == "Trade Monitor":
     import hashlib
     import pandas as pd
 
-    import time
-    import hmac
-    import hashlib
-    import requests
-    import pandas as pd
-    import streamlit as st
-
-
     st.header("Trade Monitor")
-    st.markdown("## ⚙️ Настройки подключения")
 
     use_demo = st.checkbox("Использовать демо-счет", value=True)
 
@@ -370,26 +361,47 @@ elif menu == "Trade Monitor":
         return headers
 
 
-    def get_order_history(category="linear", limit=20):
+    def get_order_history(symbol=None):
         endpoint = "/v5/order/history"
         url = base_url + endpoint
+        timestamp = str(int(time.time() * 1000))
+        recv_window = "10000"
 
         params = {
-            "category": category,
-            "limit": limit
+            "category": "linear",
+            "limit": 50,
+        }
+        if symbol:
+            params["symbol"] = symbol
+
+        import urllib.parse
+        query_string = urllib.parse.urlencode(sorted(params.items()))
+
+        string_to_sign = f"{timestamp}{API_KEY}{recv_window}{query_string}"
+
+        signature = hmac.new(
+            API_SECRET.encode("utf-8"),
+            string_to_sign.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+
+        headers = {
+            "X-BAPI-API-KEY": API_KEY,
+            "X-BAPI-TIMESTAMP": timestamp,
+            "X-BAPI-RECV-WINDOW": recv_window,
+            "X-BAPI-SIGN": signature,
+            "Content-Type": "application/json"
         }
 
-        headers = sign_request(params)
-        response = requests.get(url, headers=headers, params=params)
-
+        response = requests.get(url + "?" + query_string, headers=headers)
         if response.status_code != 200:
-            return None, f"Ошибка запроса: {response.status_code}"
+            return None, f"HTTP ошибка: {response.status_code}"
 
         data = response.json()
-        if data["retCode"] != 0:
-            return None, f"Ошибка API: {data['retMsg']}"
+        if data.get("retCode") != 0:
+            return None, data.get("retMsg", "Неизвестная ошибка")
 
-        return data["result"]["list"], None
+        return data.get("result", {}).get("list", []), None
 
 
     def get_wallet_balance_all_accounts():
@@ -419,7 +431,7 @@ elif menu == "Trade Monitor":
         return results
 
 
-    tabs = st.tabs(["📊 Баланс", "📑 История ордеров", "💼 Демо торговля"])
+    tabs = st.tabs(["📊 Баланс", "📑 История ордеров", "💼 Торговля", "🤖 Торговый бот"])
 
     with tabs[0]:
         balances = get_wallet_balance_all_accounts()
@@ -455,10 +467,10 @@ elif menu == "Trade Monitor":
             st.dataframe(df[columns_to_show].sort_values("createdTime", ascending=False))
 
     with tabs[2]:
-        st.subheader("💼 Демо торговля (создание ордера)")
+        st.subheader("💼 Торговля (создание ордера)")
         with st.form("order_form"):
-            symbol = st.text_input("Символ (например, BTCUSDT)", "BTCUSDT")
-            side = st.selectbox("Сторона", ["Buy", "Sell"])
+            symbol = st.text_input("Монета", "BTCUSDT")
+            side = st.selectbox("Операция", ["Buy", "Sell"])
             order_type = st.selectbox("Тип ордера", [ "Market"])
             qty = st.number_input("Количество", min_value=0.0, format="%.4f")
             submit_order = st.form_submit_button("Разместить ордер")
@@ -520,4 +532,27 @@ elif menu == "Trade Monitor":
                     st.success(f"Ордер размещен: {result['result']['orderId']}")
                 else:
                     st.error(f"Ошибка размещения ордера: {result.get('retMsg', 'Неизвестная ошибка')}")
+    with tabs[3]:
+        st.subheader("🤖 Торговый бот")
 
+        bot_enabled = st.checkbox("Включить торгового бота")
+
+        if bot_enabled:
+            symbol_bot = st.text_input("Монета", "BTCUSDT")
+            btn_refresh = st.button("Обновить историю торговли бота")
+
+            if btn_refresh:
+                with st.spinner("Загружаем историю торговли..."):
+                    orders, error = get_order_history(symbol=symbol_bot)
+                    if error:
+                        st.error(error)
+                    elif not orders:
+                        st.info("История торговли бота пуста.")
+                    else:
+                        df = pd.DataFrame(orders)
+                        df["createdTime"] = pd.to_datetime(df["createdTime"].astype(int), unit="ms")
+                        df["updatedTime"] = pd.to_datetime(df["updatedTime"].astype(int), unit="ms")
+                        columns_to_show = ["symbol", "side", "orderType", "price", "qty", "orderStatus", "createdTime"]
+                        st.dataframe(df[columns_to_show].sort_values("createdTime", ascending=False))
+        else:
+            st.info("Торговый бот выключен.")
