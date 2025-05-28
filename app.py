@@ -12,6 +12,8 @@ etherscan_key = config.get("ETHERSCAN_API_KEY")
 eth_address = config.get("ETH_ADDRESS")
 bybit_key = config.get("BYBIT_API_KEY")
 bybit_secret = config.get("BYBIT_API_SECRET")
+demo_bybit_key = config.get("DEMO_BYBIT_API_KEY")
+demo_bybit_secret = config.get("DEMO_BYBIT_API_SECRET")
 cryptopanic_token = config.get("CRYPTOPANIC_API_TOKEN")
 
 st.set_page_config(page_title="Crypto Analytics & Trading", layout="wide")
@@ -30,7 +32,7 @@ if menu == "Dashboard":
     import pandas as pd
     from datetime import datetime
 
-    st.title("📊 Dashboard — Обзор кошелька Ethereum")
+    st.title("Dashboard")
 
 
     @st.cache_data
@@ -81,7 +83,7 @@ if menu == "Dashboard":
 
 
 elif menu == "Market Overview":
-    st.title("🌐 Обзор рынка криптовалют")
+    st.title("Market Overview")
 
     st.subheader("Котировки популярных криптовалют")
 
@@ -150,7 +152,7 @@ elif menu == "Market Overview":
         st.error("❌ Не удалось загрузить новости с CryptoPanic.")
 
 elif menu == "Trading Analysis":
-    st.title("📊 Trading Assistant (Streamlit)")
+    st.title("Trading Analysis")
 
 
     def map_interval(interval):
@@ -265,7 +267,7 @@ elif menu == "Trading Analysis":
             else:
                 st.error(f"⚠️ Ошибка: {data.get('recommendation', 'no data')}")
 elif menu == "Backtest":
-    st.title("🚀 Backtest Trading Bot")
+    st.title("Backtest")
 
     ticker = st.selectbox("Выбери актив", [
                 "BTCUSDT",
@@ -325,39 +327,59 @@ elif menu == "Trade Monitor":
     import hashlib
     import pandas as pd
 
-    API_KEY = bybit_key
-    API_SECRET = bybit_secret
+    import time
+    import hmac
+    import hashlib
+    import requests
+    import pandas as pd
+    import streamlit as st
+
+
+    st.header("Trade Monitor")
+    st.markdown("## ⚙️ Настройки подключения")
+
+    use_demo = st.checkbox("Использовать демо-счет", value=True)
+
+    if use_demo:
+        base_url = "https://api-demo.bybit.com"
+        API_KEY = demo_bybit_key
+        API_SECRET = demo_bybit_secret
+    else:
+        base_url = "https://api.bybit.com"
+        API_KEY = bybit_key
+        API_SECRET = bybit_secret
+
+
+    def sign_request(params):
+        timestamp = str(int(time.time() * 1000))
+        recv_window = "10000"
+        query_string = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
+        string_to_sign = f"{timestamp}{API_KEY}{recv_window}{query_string}"
+        signature = hmac.new(
+            API_SECRET.encode("utf-8"),
+            string_to_sign.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+        headers = {
+            "X-BAPI-API-KEY": API_KEY,
+            "X-BAPI-TIMESTAMP": timestamp,
+            "X-BAPI-RECV-WINDOW": recv_window,
+            "X-BAPI-SIGN": signature,
+            "Content-Type": "application/json"
+        }
+        return headers
 
 
     def get_order_history(category="linear", limit=20):
         endpoint = "/v5/order/history"
-        url = "https://api.bybit.com" + endpoint
+        url = base_url + endpoint
 
         params = {
             "category": category,
             "limit": limit
         }
 
-        timestamp = str(int(time.time() * 1000))
-        recv_window = "10000"
-
-        query_string = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
-        string_to_sign = f"{timestamp}{API_KEY}{recv_window}{query_string}"
-
-        signature = hmac.new(
-            API_SECRET.encode("utf-8"),
-            string_to_sign.encode("utf-8"),
-            hashlib.sha256
-        ).hexdigest()
-
-        headers = {
-            "X-BAPI-API-KEY": API_KEY,
-            "X-BAPI-TIMESTAMP": timestamp,
-            "X-BAPI-RECV-WINDOW": recv_window,
-            "X-BAPI-SIGN": signature,
-            "Content-Type": "application/json"
-        }
-
+        headers = sign_request(params)
         response = requests.get(url, headers=headers, params=params)
 
         if response.status_code != 200:
@@ -368,87 +390,6 @@ elif menu == "Trade Monitor":
             return None, f"Ошибка API: {data['retMsg']}"
 
         return data["result"]["list"], None
-
-
-    def get_transfer_history():
-        endpoint = "/v5/account/wallet/transfer-list"
-        url = "https://api.bybit.com" + endpoint
-
-        params = {
-            "accountType": "UNIFIED",
-            "limit": 20
-        }
-
-        timestamp = str(int(time.time() * 1000))
-        recv_window = "10000"
-
-        query_string = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
-        string_to_sign = f"{timestamp}{API_KEY}{recv_window}{query_string}"
-
-        signature = hmac.new(
-            API_SECRET.encode("utf-8"),
-            string_to_sign.encode("utf-8"),
-            hashlib.sha256
-        ).hexdigest()
-
-        headers = {
-            "X-BAPI-API-KEY": API_KEY,
-            "X-BAPI-TIMESTAMP": timestamp,
-            "X-BAPI-RECV-WINDOW": recv_window,
-            "X-BAPI-SIGN": signature,
-            "Content-Type": "application/json"
-        }
-
-        response = requests.get(url, headers=headers, params=params)
-
-        if response.status_code != 200:
-            return None, f"Ошибка запроса: {response.status_code}"
-
-        data = response.json()
-        if data["retCode"] != 0:
-            return None, f"Ошибка API: {data['retMsg']}"
-
-        return data["result"]["list"], None
-
-
-    def get_wallet_balance():
-        endpoint = "/v5/account/wallet-balance"
-        url = "https://api.bybit.com" + endpoint
-
-        params = {
-            "accountType": "UNIFIED"
-        }
-
-        timestamp = str(int(time.time() * 1000))
-        recv_window = "10000"
-
-        query_string = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
-        string_to_sign = f"{timestamp}{API_KEY}{recv_window}{query_string}"
-
-        signature = hmac.new(
-            API_SECRET.encode("utf-8"),
-            string_to_sign.encode("utf-8"),
-            hashlib.sha256
-        ).hexdigest()
-
-        headers = {
-            "X-BAPI-API-KEY": API_KEY,
-            "X-BAPI-TIMESTAMP": timestamp,
-            "X-BAPI-RECV-WINDOW": recv_window,
-            "X-BAPI-SIGN": signature,
-            "Content-Type": "application/json"
-        }
-
-        response = requests.get(url, headers=headers, params=params)
-
-        if response.status_code != 200:
-            return None, f"Ошибка запроса: {response.status_code}"
-
-        data = response.json()
-        if data["retCode"] != 0:
-            return None, f"Ошибка API: {data['retMsg']}"
-
-        return data["result"]["list"][0], None
 
 
     def get_wallet_balance_all_accounts():
@@ -457,32 +398,13 @@ elif menu == "Trade Monitor":
 
         for acc_type in account_types:
             endpoint = "/v5/account/wallet-balance"
-            url = "https://api.bybit.com" + endpoint
+            url = base_url + endpoint
 
             params = {
                 "accountType": acc_type
             }
 
-            timestamp = str(int(time.time() * 1000))
-            recv_window = "10000"
-
-            query_string = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
-            string_to_sign = f"{timestamp}{API_KEY}{recv_window}{query_string}"
-
-            signature = hmac.new(
-                API_SECRET.encode("utf-8"),
-                string_to_sign.encode("utf-8"),
-                hashlib.sha256
-            ).hexdigest()
-
-            headers = {
-                "X-BAPI-API-KEY": API_KEY,
-                "X-BAPI-TIMESTAMP": timestamp,
-                "X-BAPI-RECV-WINDOW": recv_window,
-                "X-BAPI-SIGN": signature,
-                "Content-Type": "application/json"
-            }
-
+            headers = sign_request(params)
             response = requests.get(url, headers=headers, params=params)
 
             if response.status_code == 200:
@@ -497,12 +419,9 @@ elif menu == "Trade Monitor":
         return results
 
 
-    st.header("💼 Trade Monitor — Баланс, Транзакции и Ордеры")
-
-    tabs = st.tabs(["📊 Баланс", "📑 История ордеров"])
+    tabs = st.tabs(["📊 Баланс", "📑 История ордеров", "💼 Демо торговля"])
 
     with tabs[0]:
-        st.subheader("💰 Балансы по всем типам аккаунтов")
         balances = get_wallet_balance_all_accounts()
 
         for acc_type, coins in balances.items():
@@ -529,10 +448,76 @@ elif menu == "Trade Monitor":
         elif not orders:
             st.info("История ордеров пуста.")
         else:
-            import pandas as pd
-
             df = pd.DataFrame(orders)
             df["createdTime"] = pd.to_datetime(df["createdTime"].astype(int), unit="ms")
             df["updatedTime"] = pd.to_datetime(df["updatedTime"].astype(int), unit="ms")
             columns_to_show = ["symbol", "side", "orderType", "price", "qty", "orderStatus", "createdTime"]
             st.dataframe(df[columns_to_show].sort_values("createdTime", ascending=False))
+
+    with tabs[2]:
+        st.subheader("💼 Демо торговля (создание ордера)")
+        with st.form("order_form"):
+            symbol = st.text_input("Символ (например, BTCUSDT)", "BTCUSDT")
+            side = st.selectbox("Сторона", ["Buy", "Sell"])
+            order_type = st.selectbox("Тип ордера", [ "Market"])
+            qty = st.number_input("Количество", min_value=0.0, format="%.4f")
+            submit_order = st.form_submit_button("Разместить ордер")
+
+        if submit_order:
+            import json
+
+
+            def place_order():
+                endpoint = "/v5/order/create"
+                url = base_url + endpoint
+
+                body = {
+                    "category": "linear",
+                    "symbol": symbol,
+                    "side": side,
+                    "orderType": order_type,
+                    "qty": str(qty),
+                    "timeInForce": "GoodTillCancel"
+                }
+
+                if order_type == "Limit":
+                    if price <= 0:
+                        st.error("Для лимитного ордера цена должна быть больше 0")
+                        return
+                    body["price"] = str(price)
+
+                timestamp = str(int(time.time() * 1000))
+                recv_window = "10000"
+
+                # Сериализуем тело запроса в JSON без пробелов, с сортировкой ключей
+                body_json = json.dumps(body, separators=(',', ':'), sort_keys=True)
+
+                string_to_sign = f"{timestamp}{API_KEY}{recv_window}{body_json}"
+
+                signature = hmac.new(
+                    API_SECRET.encode("utf-8"),
+                    string_to_sign.encode("utf-8"),
+                    hashlib.sha256
+                ).hexdigest()
+
+                headers = {
+                    "X-BAPI-API-KEY": API_KEY,
+                    "X-BAPI-TIMESTAMP": timestamp,
+                    "X-BAPI-RECV-WINDOW": recv_window,
+                    "X-BAPI-SIGN": signature,
+                    "Content-Type": "application/json"
+                }
+
+                response = requests.post(url, headers=headers,
+                                         data=body_json)  # тело запроса передаем в data (json-строка)
+
+                return response.json()
+
+
+            with st.spinner("Отправка ордера..."):
+                result = place_order()
+                if result.get("retCode") == 0:
+                    st.success(f"Ордер размещен: {result['result']['orderId']}")
+                else:
+                    st.error(f"Ошибка размещения ордера: {result.get('retMsg', 'Неизвестная ошибка')}")
+
