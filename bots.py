@@ -50,3 +50,44 @@ class SimpleBot:
             self.exchange.buy()
         elif short_ma < long_ma and self.exchange.position > 0:
             self.exchange.sell()
+
+
+class ModernRSIVolumeBot:
+    def __init__(self, exchange, rsi_period=14, rsi_buy=30, rsi_sell=70, volume_multiplier=1.5):
+        self.exchange = exchange
+        self.rsi_period = rsi_period
+        self.rsi_buy = rsi_buy
+        self.rsi_sell = rsi_sell
+        self.volume_multiplier = volume_multiplier
+
+    def compute_rsi(self, close_prices):
+        delta = close_prices.diff()
+        gain = delta.where(delta > 0, 0.0)
+        loss = -delta.where(delta < 0, 0.0)
+
+        avg_gain = gain.rolling(window=self.rsi_period, min_periods=1).mean()
+        avg_loss = loss.rolling(window=self.rsi_period, min_periods=1).mean()
+
+        rs = avg_gain / (avg_loss + 1e-9)
+        rsi = 100 - (100 / (1 + rs))
+        return rsi
+
+    def tick(self):
+        if self.exchange.current_idx < self.rsi_period + 1:
+            return
+
+        data = self.exchange.data.iloc[:self.exchange.current_idx]
+        close = data['close']
+        volume = data['volume']
+
+        rsi = self.compute_rsi(close).iloc[-1]
+        recent_volume = volume.iloc[-1]
+        average_volume = volume.tail(20).mean()
+
+        volume_spike = recent_volume > average_volume * self.volume_multiplier
+
+        if rsi < self.rsi_buy and volume_spike and self.exchange.position == 0:
+            self.exchange.buy()
+
+        elif rsi > self.rsi_sell and self.exchange.position > 0:
+            self.exchange.sell()

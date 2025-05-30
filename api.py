@@ -5,7 +5,7 @@ from models import BacktestResult, PriceData
 from datetime import datetime, timedelta
 from backtest import ExchangeSimulator, BacktestManager
 from bs import compute_rsi
-from bots import SimpleBot
+from bots import ModernRSIVolumeBot as SimpleBot
 import requests
 from models import PriceData
 
